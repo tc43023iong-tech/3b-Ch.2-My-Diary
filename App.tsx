@@ -5,7 +5,8 @@ import { GameType, Pokemon, WordItem } from './types';
 import { 
   LucideHome, LucideGamepad2, LucideTrash2, LucideBrain, 
   LucideRefreshCcw, LucideTrophy, LucidePlay, LucideCreditCard, 
-  LucideList, LucideInfo, LucideX, LucideSearch, LucideArrowLeft, LucideArrowRight
+  LucideList, LucideInfo, LucideX, LucideSearch, LucideArrowLeft, LucideArrowRight,
+  LucideHelpCircle
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -261,7 +262,7 @@ const FillBlanks = ({ onWin }: { onWin: () => void }) => {
   );
 };
 
-// --- Game: Bubble Pop (Fixed Grid) ---
+// --- Game: Bubble Pop ---
 const BubblePop = ({ onWin }: { onWin: () => void }) => {
   const [idx, setIdx] = useState(0);
   const target = VOCABULARY[idx];
@@ -361,6 +362,88 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
   );
 };
 
+// --- Game: Riddles Game ---
+const RiddlesGame = ({ onWin }: { onWin: () => void }) => {
+  const [idx, setIdx] = useState(0);
+  const riddles = useMemo(() => [
+    { target: 'after-school activities', clue: 'I join clubs like drawing or football after the bell rings. What am I doing?' },
+    { target: 'listen to music', clue: 'I use my headphones 🎧 and ears to hear beautiful songs. What am I doing?' },
+    { target: 'watch online videos', clue: 'I use a computer or tablet to see stories or funny clips on YouTube. What am I doing?' },
+    { target: 'play mobile games', clue: 'I use a phone or tablet 📱 to play games like Pokemon GO. What am I doing?' },
+    { target: 'chat with friends', clue: 'I talk to my best friends 💬 about my day. What am I doing?' },
+    { target: 'study for exams', clue: 'I read my books 📚 and 温习 to prepare for a big test. What am I doing?' },
+    { target: 'practise the piano', clue: 'I press black and white keys 🎹 to learn a new song. What am I doing?' },
+    { target: 'play card games', clue: 'I play games like Uno or Poker with a deck of cards. What am I doing?' },
+    { target: 'play board games', clue: 'I play chess or Monopoly on a table board with dice 🎲. What am I doing?' },
+    { target: 'sick', clue: 'I have a high fever 🤒 and stay in bed all day. How do I feel?' },
+    { target: 'lonely', clue: 'I feel sad 😟 because I am all alone and have nobody to play with. How do I feel?' },
+    { target: 'busy', clue: 'I have so much homework 🐝 and many things to do. How do I feel?' },
+    { target: 'free', clue: 'I have nothing to do and lots of time to play! 🕊️ How do I feel?' },
+    { target: 'yesterday', clue: 'Today is Tuesday. Monday was... what day? 📅' },
+    { target: 'diary', clue: 'I write down what happened every day in this special notebook. 📔 What is it?' },
+    { target: 'collected', clue: 'I gathered many stickers or cards together as a hobby. 📦 What did I do?' },
+    { target: 'hour', clue: 'Sixty minutes of time makes one... what? ⌛' },
+    { target: 'sleepy', clue: 'I am yawning 😴 and I really want to go to bed. How do I feel?' },
+    { target: 'nap', clue: 'I am a bit tired, so I sleep for only 20 minutes in the afternoon. 🛌 What am I taking?' },
+    { target: 'hurry', clue: 'I am late for school, so I must move very fast! 🏃 What should I do?' },
+    { target: 'quickly', clue: 'The lightning bolt ⚡ or a fast car moves... how?' },
+    { target: 'suddenly', clue: 'Something happened very fast 💥 when I did not expect it. How did it happen?' },
+    { target: 'rushed', clue: 'I ran very fast 💨 out the door to catch the bus. What did I do?' },
+    { target: 'smart', clue: 'I am very clever 💡 and I know all the answers in class. What am I?' },
+    { target: 'important', clue: 'This is something very special ⭐ that you must not forget. What is it?' },
+  ].sort(() => Math.random() - 0.5), []);
+
+  const currentRiddle = riddles[idx % riddles.length];
+  const targetWord = VOCABULARY.find(w => w.english === currentRiddle.target)!;
+  
+  const options = useMemo(() => {
+    const others = VOCABULARY.filter(w => w.english !== currentRiddle.target)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3);
+    return [targetWord, ...others].sort(() => Math.random() - 0.5);
+  }, [currentRiddle]);
+
+  const select = (word: string) => {
+    if (word === targetWord.english) {
+      if (idx + 1 < riddles.length) setIdx(idx + 1);
+      else onWin();
+    }
+  };
+
+  return (
+    <div className="p-8 bg-indigo-100 rounded-[3rem] border-4 border-indigo-300 min-h-[60vh] flex flex-col items-center justify-center relative overflow-hidden">
+      <div className="absolute top-4 left-4 text-6xl opacity-10">🔮</div>
+      <div className="absolute bottom-4 right-4 text-6xl opacity-10">✨</div>
+      
+      <div className="flex items-center gap-6 mb-8 w-full max-w-2xl">
+        <img src={getPokemonImageUrl(39)} className="w-24 h-24 pokemon-float" alt="Jigglypuff" />
+        <div className="bg-white p-6 rounded-[2rem] rounded-bl-none shadow-xl border-4 border-indigo-200 relative flex-1">
+          <p className="text-2xl font-bold text-indigo-800 leading-relaxed italic">
+            "{currentRiddle.clue}"
+          </p>
+          <div className="absolute -bottom-4 -left-4 text-3xl">💬</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
+        {options.map(opt => (
+          <button 
+            key={opt.id} 
+            onClick={() => select(opt.english)}
+            className="bg-white p-5 rounded-2xl border-4 border-white shadow-lg hover:border-indigo-400 hover:scale-105 active:scale-95 transition-all text-xl font-bold text-indigo-600 flex items-center justify-center text-center"
+          >
+            {opt.english}
+          </button>
+        ))}
+      </div>
+      
+      <div className="mt-8 bg-indigo-200 px-6 py-2 rounded-full font-bold text-indigo-700 flex items-center gap-2">
+        <LucideHelpCircle size={18}/> Riddle {idx + 1} of {riddles.length} 📜
+      </div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -390,6 +473,7 @@ export default function App() {
         {view === GameType.FILL_BLANKS && <FillBlanks onWin={handleWin}/>}
         {view === GameType.BUBBLE_POP && <BubblePop onWin={handleWin}/>}
         {view === GameType.MEMORY_GAME && <MemoryGame onWin={handleWin}/>}
+        {view === GameType.RIDDLES && <RiddlesGame onWin={handleWin}/>}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md shadow-[0_-10px_30px_rgba(0,0,0,0.1)] border-t-8 border-yellow-400 p-4 z-50 overflow-x-auto">
@@ -401,6 +485,7 @@ export default function App() {
           <NavBtn icon="🖊️" label="Blanks" active={view === GameType.FILL_BLANKS} onClick={() => setView(GameType.FILL_BLANKS)} color="text-green-600" />
           <NavBtn icon="🫧" label="Bubble" active={view === GameType.BUBBLE_POP} onClick={() => setView(GameType.BUBBLE_POP)} color="text-cyan-600" />
           <NavBtn icon="🧠" label="Memory" active={view === GameType.MEMORY_GAME} onClick={() => setView(GameType.MEMORY_GAME)} color="text-purple-600" />
+          <NavBtn icon={<LucideHelpCircle size={32}/>} label="Riddles" active={view === GameType.RIDDLES} onClick={() => setView(GameType.RIDDLES)} color="text-indigo-600" />
         </div>
       </nav>
 
