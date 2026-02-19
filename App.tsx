@@ -6,11 +6,11 @@ import {
   LucideHome, LucideGamepad2, LucideTrash2, LucideBrain, 
   LucideRefreshCcw, LucideTrophy, LucidePlay, LucideCreditCard, 
   LucideList, LucideInfo, LucideX, LucideSearch, LucideArrowLeft, LucideArrowRight,
-  LucideHelpCircle, LucideSwords
+  LucideHelpCircle, LucideSwords, LucideStar
 } from 'lucide-react';
 
 // --- Audio Utility ---
-const playSound = (type: 'correct' | 'wrong') => {
+const playSound = (type: 'correct' | 'wrong' | 'win') => {
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -22,19 +22,27 @@ const playSound = (type: 'correct' | 'wrong') => {
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
-  } else {
+  } else if (type === 'wrong') {
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(150, ctx.currentTime);
     osc.frequency.linearRampToValueAtTime(50, ctx.currentTime + 0.2);
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
+  } else if (type === 'win') {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(440, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.2);
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.4);
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.1);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
   }
 
   osc.connect(gain);
   gain.connect(ctx.destination);
   osc.start();
-  osc.stop(ctx.currentTime + 0.5);
+  osc.stop(ctx.currentTime + 0.7);
 };
 
 // --- Sub-Components ---
@@ -423,7 +431,7 @@ const RiddlesGame = ({ onWin }: { onWin: () => void }) => {
     { target: 'watch online videos', clue: 'I use a computer or tablet to see stories or funny clips on YouTube. What am I doing?' },
     { target: 'play mobile games', clue: 'I use a phone or tablet 📱 to play games like Pokemon GO. What am I doing?' },
     { target: 'chat with friends', clue: 'I talk to my best friends 💬 about my day. What am I doing?' },
-    { target: 'study for exams', clue: 'I read my books 📚 and 温习 to prepare for a big test. What am I doing?' },
+    { target: 'study for exams', clue: 'I read my books 📚 and 温習 to prepare for a big test. What am I doing?' },
     { target: 'practise the piano', clue: 'I press black and white keys 🎹 to learn a new song. What am I doing?' },
     { target: 'play card games', clue: 'I play games like Uno or Poker with a deck of cards. What am I doing?' },
     { target: 'play board games', clue: 'I play chess or Monopoly on a table board with dice 🎲. What am I doing?' },
@@ -500,13 +508,14 @@ const RiddlesGame = ({ onWin }: { onWin: () => void }) => {
 };
 
 // --- Game: Tug of War ---
-const TugOfWarGame = ({ onWin }: { onWin: (winner: string) => void }) => {
+const TugOfWarGame = ({ onWin }: { onWin: (winner: 'Player 1' | 'Player 2') => void }) => {
   const [qIdx, setQIdx] = useState(0);
-  const [score, setScore] = useState(0); // -3 to 3 (Left player wins if -3, Right player wins if 3)
-  const [p1Score, setP1Score] = useState(0); // Round tally
-  const [p2Score, setP2Score] = useState(0); // Round tally
+  const [tugPosition, setTugPosition] = useState(0); // Rope visual offset
+  const [p1Score, setP1Score] = useState(0); 
+  const [p2Score, setP2Score] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   
+  // Every word is available, 5 questions per set.
   const questionPool = useMemo(() => VOCABULARY.sort(() => Math.random() - 0.5).slice(0, 5), []);
   const currentTarget = questionPool[qIdx];
   
@@ -521,16 +530,22 @@ const TugOfWarGame = ({ onWin }: { onWin: (winner: string) => void }) => {
     
     if (english === currentTarget.english) {
       playSound('correct');
-      const newTugScore = side === 'L' ? score - 1 : score + 1;
-      setScore(newTugScore);
-      
-      if (side === 'L') setP1Score(s => s + 1);
-      else setP2Score(s => s + 1);
+      const sideScore = side === 'L' ? p1Score + 1 : p2Score + 1;
+      if (side === 'L') {
+        setP1Score(sideScore);
+        setTugPosition(p => p - 1);
+      } else {
+        setP2Score(sideScore);
+        setTugPosition(p => p + 1);
+      }
 
-      if (qIdx === 4 || Math.abs(newTugScore) >= 3) {
+      if (qIdx === 4) {
         setGameOver(true);
-        const winner = newTugScore < 0 || p1Score > p2Score ? 'Player 1 (Left)' : 'Player 2 (Right)';
-        setTimeout(() => onWin(winner), 1200);
+        playSound('win');
+        const finalP1 = side === 'L' ? p1Score + 1 : p1Score;
+        const finalP2 = side === 'R' ? p2Score + 1 : p2Score;
+        const winner = finalP1 > finalP2 ? 'Player 1' : 'Player 2';
+        setTimeout(() => onWin(winner as 'Player 1' | 'Player 2'), 1500);
       } else {
         setQIdx(qIdx + 1);
       }
@@ -542,88 +557,101 @@ const TugOfWarGame = ({ onWin }: { onWin: (winner: string) => void }) => {
   if (!currentTarget) return null;
 
   return (
-    <div className="fixed inset-0 bg-orange-50 z-[100] flex flex-col md:flex-row overflow-hidden">
-      {/* Top HUD - Clear Scores */}
-      <div className="absolute top-0 left-0 right-0 h-24 bg-white/90 border-b-4 border-orange-200 flex items-center justify-between px-10 z-20 shadow-lg backdrop-blur-sm">
-        <div className="flex flex-col items-start">
-          <span className="text-blue-600 font-black text-sm uppercase tracking-tighter">Player 1 Score</span>
-          <span className="text-5xl font-title text-blue-500 leading-none">{p1Score}</span>
+    <div className="fixed inset-0 bg-orange-50 z-[100] flex flex-col md:flex-row overflow-hidden font-title">
+      {/* HUD - Massive Score Display */}
+      <div className="absolute top-0 left-0 right-0 h-32 bg-white/95 border-b-8 border-yellow-400 flex items-center justify-between px-12 z-20 shadow-2xl backdrop-blur-md">
+        <div className="flex flex-col items-start gap-1">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-blue-500 animate-pulse"></div>
+            <span className="text-blue-600 font-black text-lg uppercase">P1 WINS</span>
+          </div>
+          <div className="text-7xl font-title text-blue-500 leading-none drop-shadow-sm">{p1Score}</div>
         </div>
-        <div className="flex flex-col items-center">
-            <div className="bg-orange-500 text-white px-4 py-1 rounded-full text-xs font-bold mb-1">ROUND</div>
-            <div className="text-3xl font-black text-orange-600">{qIdx + 1} <span className="text-orange-300">/ 5</span></div>
+
+        <div className="flex flex-col items-center bg-orange-100 px-10 py-3 rounded-[2rem] border-4 border-orange-300">
+            <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-1">BATTLE ROUND</span>
+            <div className="flex items-center gap-4">
+                {[...Array(5)].map((_, i) => (
+                    <div key={i} className={`w-6 h-6 rounded-full border-2 ${i < qIdx ? 'bg-orange-500 border-orange-700' : i === qIdx ? 'bg-white border-orange-500 animate-bounce' : 'bg-gray-200 border-gray-300'}`}></div>
+                ))}
+            </div>
+            <div className="text-2xl font-black text-orange-600 mt-2">ROUND {qIdx + 1} / 5</div>
         </div>
-        <div className="flex flex-col items-end">
-          <span className="text-red-600 font-black text-sm uppercase tracking-tighter">Player 2 Score</span>
-          <span className="text-5xl font-title text-red-500 leading-none">{p2Score}</span>
+
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-black text-lg uppercase">P2 WINS</span>
+            <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse"></div>
+          </div>
+          <div className="text-7xl font-title text-red-500 leading-none drop-shadow-sm">{p2Score}</div>
         </div>
       </div>
 
-      {/* Player Left (Pikachu) */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-24 border-b-4 md:border-b-0 md:border-r-4 border-orange-200 bg-gradient-to-br from-blue-50 to-white">
-        <div className="mb-6 text-center">
-          <img src={getPokemonImageUrl(25)} className={`w-28 h-28 mb-4 pokemon-float ${score < 0 ? 'scale-125 transition-transform' : ''}`} alt="Pikachu" />
-          <h2 className="text-2xl font-black text-blue-500 uppercase tracking-widest">P1 ⚡</h2>
-          <div className="mt-6 bg-blue-100 px-8 py-4 rounded-[2rem] border-4 border-blue-400 text-4xl font-black text-blue-900 shadow-lg">{currentTarget.chinese}</div>
+      {/* Player 1 Side */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-32 bg-gradient-to-br from-blue-50 to-white relative">
+        <div className="absolute top-36 left-12 text-blue-100 scale-[4] opacity-20 -z-10"><LucideSwords/></div>
+        <div className="mb-10 text-center flex flex-col items-center">
+          <img src={getPokemonImageUrl(25)} className={`w-32 h-32 mb-4 pokemon-float ${tugPosition < 0 ? 'scale-125 transition-all drop-shadow-2xl' : ''}`} alt="Pikachu" />
+          <div className="bg-blue-600 text-white px-6 py-2 rounded-full text-xl font-black mb-6 shadow-lg">PLAYER 1</div>
+          <div className="bg-white px-10 py-6 rounded-[3rem] border-8 border-blue-400 text-6xl font-black text-blue-900 shadow-2xl animate-in fade-in zoom-in duration-500">{currentTarget.chinese}</div>
         </div>
-        <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+        <div className="grid grid-cols-2 gap-6 w-full max-w-md">
           {options.map(opt => (
-            <button key={`L-${opt.id}`} onClick={() => handleSelect('L', opt.english)} className="bg-white p-5 rounded-2xl border-4 border-blue-100 shadow-md text-xl font-bold text-blue-800 hover:bg-blue-50 active:scale-95 transition-all">
+            <button key={`L-${opt.id}`} onClick={() => handleSelect('L', opt.english)} className="bg-white p-6 rounded-[2rem] border-4 border-blue-100 shadow-xl text-2xl font-black text-blue-800 hover:bg-blue-500 hover:text-white hover:scale-105 active:scale-95 transition-all">
               {opt.english}
             </button>
           ))}
         </div>
       </div>
 
-      {/* The Rope Center - Improved Visuals */}
+      {/* Rope Center */}
       <div className="absolute top-1/2 left-0 right-0 md:top-0 md:bottom-0 md:left-1/2 -translate-y-1/2 md:-translate-y-0 md:-translate-x-1/2 flex items-center justify-center pointer-events-none z-10">
-        <div className="relative w-[90%] h-12 md:w-16 md:h-[90%] flex items-center justify-center">
-            {/* Rope Background Path */}
-            <div className="absolute w-full h-4 md:w-4 md:h-full bg-orange-900/20 rounded-full border-2 border-orange-800/10"></div>
+        <div className="relative w-full h-16 md:w-20 md:h-[80%] flex items-center justify-center">
             {/* Visual Rope */}
-            <div className="absolute w-full h-3 md:w-3 md:h-full bg-orange-800 rounded-full shadow-lg border-2 border-orange-950 flex justify-between px-2 items-center md:flex-col md:py-2">
-                {/* Win markers */}
-                <div className="w-1 h-8 md:w-8 md:h-1 bg-red-400 rounded-full opacity-50"></div>
-                <div className="w-1 h-8 md:w-8 md:h-1 bg-gray-400 rounded-full opacity-50"></div>
-                <div className="w-1 h-8 md:w-8 md:h-1 bg-blue-400 rounded-full opacity-50"></div>
+            <div className="absolute w-[95%] h-5 md:w-5 md:h-[95%] bg-orange-900 rounded-full shadow-2xl border-4 border-orange-950 flex justify-between px-6 items-center md:flex-col md:py-6">
+                {[...Array(7)].map((_, i) => (
+                    <div key={i} className="w-1 h-12 md:w-12 md:h-1 bg-white/20 rounded-full"></div>
+                ))}
             </div>
             
-            {/* Moving Knot */}
+            {/* Center Knot */}
             <div 
-                className="absolute w-20 h-20 bg-red-600 rounded-full shadow-2xl border-4 border-white transition-all duration-700 ease-out flex items-center justify-center"
+                className="absolute w-24 h-24 bg-red-600 rounded-full shadow-[0_0_50px_rgba(239,68,68,0.5)] border-8 border-white transition-all duration-700 ease-out flex items-center justify-center"
                 style={{
-                    left: `${50 + (score * 15)}%`,
+                    left: `${50 + (tugPosition * 12)}%`,
                     top: '50%',
-                    transform: 'translate(-50%, -50%) rotate(0deg)'
+                    transform: 'translate(-50%, -50%)'
                 }}
             >
-                <div className="text-4xl drop-shadow-md animate-bounce">🎀</div>
-                {/* Visual Label */}
-                <div className="absolute -top-12 bg-white px-3 py-1 rounded-full shadow-md text-[10px] font-black text-red-600 uppercase whitespace-nowrap border-2 border-red-500">Center Mark</div>
+                <div className="text-5xl drop-shadow-lg animate-bounce">🎀</div>
+                <div className="absolute -bottom-10 bg-white px-4 py-1 rounded-full shadow-lg text-xs font-black text-red-600 border-2 border-red-500 uppercase tracking-tighter">WIN ZONE</div>
             </div>
         </div>
       </div>
 
-      {/* Player Right (Charmander) */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-24 bg-gradient-to-bl from-red-50 to-white">
-        <div className="mb-6 text-center">
-          <img src={getPokemonImageUrl(4)} className={`w-28 h-28 mb-4 pokemon-float ${score > 0 ? 'scale-125 transition-transform' : ''}`} alt="Charmander" />
-          <h2 className="text-2xl font-black text-red-500 uppercase tracking-widest">P2 🔥</h2>
-          <div className="mt-6 bg-red-100 px-8 py-4 rounded-[2rem] border-4 border-red-400 text-4xl font-black text-red-900 shadow-lg">{currentTarget.chinese}</div>
+      {/* Player 2 Side */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-32 bg-gradient-to-bl from-red-50 to-white relative">
+        <div className="absolute top-36 right-12 text-red-100 scale-[4] opacity-20 -z-10"><LucideSwords/></div>
+        <div className="mb-10 text-center flex flex-col items-center">
+          <img src={getPokemonImageUrl(4)} className={`w-32 h-32 mb-4 pokemon-float ${tugPosition > 0 ? 'scale-125 transition-all drop-shadow-2xl' : ''}`} alt="Charmander" />
+          <div className="bg-red-600 text-white px-6 py-2 rounded-full text-xl font-black mb-6 shadow-lg">PLAYER 2</div>
+          <div className="bg-white px-10 py-6 rounded-[3rem] border-8 border-red-400 text-6xl font-black text-red-900 shadow-2xl animate-in fade-in zoom-in duration-500">{currentTarget.chinese}</div>
         </div>
-        <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+        <div className="grid grid-cols-2 gap-6 w-full max-w-md">
           {options.map(opt => (
-            <button key={`R-${opt.id}`} onClick={() => handleSelect('R', opt.english)} className="bg-white p-5 rounded-2xl border-4 border-red-100 shadow-md text-xl font-bold text-red-800 hover:bg-red-50 active:scale-95 transition-all">
+            <button key={`R-${opt.id}`} onClick={() => handleSelect('R', opt.english)} className="bg-white p-6 rounded-[2rem] border-4 border-red-100 shadow-xl text-2xl font-black text-red-800 hover:bg-red-500 hover:text-white hover:scale-105 active:scale-95 transition-all">
               {opt.english}
             </button>
           ))}
         </div>
       </div>
-      
-      {/* Visual Instruction Overlay */}
+
+      {/* Quick Start Message */}
       {qIdx === 0 && (
-          <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-yellow-400 text-white px-6 py-2 rounded-full font-black animate-pulse shadow-xl">
-            BE FAST! ONE ANSWER PER TURN! 🚀
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-yellow-400 border-4 border-yellow-600 px-10 py-4 rounded-[2rem] shadow-2xl flex items-center gap-4 animate-bounce z-30">
+            <span className="text-4xl">⚡</span>
+            <span className="text-3xl font-black text-white uppercase tracking-tighter">First one to tap correctly wins the round!</span>
+            <span className="text-4xl">🔥</span>
           </div>
       )}
     </div>
@@ -642,9 +670,13 @@ export default function App() {
     setView(GameType.WORD_LIST);
   }, []);
 
-  const handleTugWin = (winner: string) => {
+  const handleTugWin = (winner: 'Player 1' | 'Player 2') => {
     setWinnerName(winner);
-    setReward(POKEMON_LIST[Math.floor(Math.random() * POKEMON_LIST.length)]);
+    // Directly show the winner's Pokemon avatar
+    const winningPoke = winner === 'Player 1' 
+      ? POKEMON_LIST.find(p => p.id === 25) // Pikachu
+      : POKEMON_LIST.find(p => p.id === 4); // Charmander
+    setReward(winningPoke || POKEMON_LIST[0]);
     setView(GameType.WORD_LIST);
   };
 
@@ -689,12 +721,12 @@ export default function App() {
           <div className="bg-white rounded-[5rem] p-12 max-w-sm w-full text-center shadow-2xl border-[16px] border-yellow-400">
             <img src={reward.imageUrl} className="w-64 h-64 mx-auto mb-8 pokemon-float" alt="Pokemon" />
             <h2 className="text-5xl font-title text-yellow-600 mb-4 uppercase tracking-tighter">
-                {winnerName ? "Winner!" : "Gotcha!"} 🎉
+                {winnerName ? "VICTORY!" : "GOTCHA!"} 🎉
             </h2>
             <p className="text-3xl font-bold text-gray-700 italic mb-10 tracking-widest uppercase underline decoration-yellow-400">
-                {winnerName ? `${winnerName} got ${reward.name}!` : `You caught ${reward.name}!`}
+                {winnerName ? `${winnerName} wins!` : `You caught ${reward.name}!`}
             </p>
-            <button onClick={() => { setReward(null); setWinnerName(null); }} className="bg-green-500 text-white font-title text-2xl py-6 px-12 rounded-full w-full shadow-2xl hover:scale-105 transition-transform active:scale-95 border-b-8 border-green-700">AWESOME!</button>
+            <button onClick={() => { setReward(null); setWinnerName(null); }} className="bg-green-500 text-white font-title text-2xl py-6 px-12 rounded-full w-full shadow-2xl hover:scale-105 transition-transform active:scale-95 border-b-8 border-green-700">CONTINUE! 🚀</button>
           </div>
         </div>
       )}
