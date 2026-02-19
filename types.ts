@@ -27,7 +27,8 @@ export enum GameType {
   FILL_BLANKS = 'FILL_BLANKS',
   BUBBLE_POP = 'BUBBLE_POP',
   MEMORY_GAME = 'MEMORY_GAME',
-  RIDDLES = 'RIDDLES'
+  RIDDLES = 'RIDDLES',
+  TUG_OF_WAR = 'TUG_OF_WAR'
 }
 
 export interface Pokemon {

@@ -1,13 +1,41 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { VOCABULARY, POKEMON_LIST, getPokemonImageUrl } from './constants';
 import { GameType, Pokemon, WordItem } from './types';
 import { 
   LucideHome, LucideGamepad2, LucideTrash2, LucideBrain, 
   LucideRefreshCcw, LucideTrophy, LucidePlay, LucideCreditCard, 
   LucideList, LucideInfo, LucideX, LucideSearch, LucideArrowLeft, LucideArrowRight,
-  LucideHelpCircle
+  LucideHelpCircle, LucideSwords
 } from 'lucide-react';
+
+// --- Audio Utility ---
+const playSound = (type: 'correct' | 'wrong') => {
+  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  if (type === 'correct') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1); // A5
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+  } else {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(50, ctx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
+  }
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.5);
+};
 
 // --- Sub-Components ---
 
@@ -136,8 +164,11 @@ const EmojiDetective = ({ onWin }: { onWin: () => void }) => {
 
   const select = (o: string) => {
     if (o === target.english) {
+      playSound('correct');
       if (idx + 1 < VOCABULARY.length) setIdx(idx + 1);
       else onWin();
+    } else {
+      playSound('wrong');
     }
   };
 
@@ -170,8 +201,11 @@ const MatchingGame = ({ onWin }: { onWin: () => void }) => {
   useEffect(() => {
     if (selEn && selCn) {
       if (pairs.find(p => p.en === selEn && p.cn === selCn)) {
+        playSound('correct');
         setSolved([...solved, selEn]);
         if (solved.length + 1 === pairs.length) onWin();
+      } else {
+        playSound('wrong');
       }
       setSelEn(null); setSelCn(null);
     }
@@ -206,6 +240,7 @@ const SpellingBee = ({ onWin }: { onWin: () => void }) => {
       const next = [...guess, l];
       setGuess(next);
       if (next.join("") === cleanTarget) {
+        playSound('correct');
         if (idx + 1 < VOCABULARY.length) { setIdx(idx + 1); setGuess([]); }
         else onWin();
       }
@@ -239,8 +274,11 @@ const FillBlanks = ({ onWin }: { onWin: () => void }) => {
 
   const select = (o: string) => {
     if (o === target.english) {
+      playSound('correct');
       if (idx + 1 < VOCABULARY.length) setIdx(idx + 1);
       else onWin();
+    } else {
+      playSound('wrong');
     }
   };
 
@@ -271,9 +309,12 @@ const BubblePop = ({ onWin }: { onWin: () => void }) => {
 
   const pop = (o: string) => {
     if (o === target.english) {
+      playSound('correct');
       setCaughtCount(c => c + 1);
       if (idx + 1 < VOCABULARY.length) setIdx(idx + 1);
       else onWin();
+    } else {
+      playSound('wrong');
     }
   };
 
@@ -322,6 +363,17 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
     } else if (phase === 'study') setPhase('guess');
   }, [timer, phase]);
 
+  const handleGuess = (w: WordItem) => {
+    if (w.id === missing?.id) {
+      playSound('correct');
+      onWin();
+    } else {
+      playSound('wrong');
+      setPhase('study');
+      setTimer(5);
+    }
+  }
+
   return (
     <div className="p-8 bg-purple-50 rounded-[3rem] border-4 border-purple-200 min-h-[60vh] flex flex-col items-center">
       <img src={getPokemonImageUrl(151)} className="w-24 h-24 mb-6 pokemon-float" alt="Mew"/>
@@ -351,7 +403,7 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
           </div>
           <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
             {subset.sort(() => Math.random() - 0.5).map(w => (
-              <button key={w.id} onClick={() => w.id === missing?.id ? onWin() : setPhase('study')} className="bg-white p-6 rounded-2xl border-4 border-purple-300 font-bold hover:bg-purple-100 shadow-sm transition-all active:scale-95 text-xl">
+              <button key={w.id} onClick={() => handleGuess(w)} className="bg-white p-6 rounded-2xl border-4 border-purple-300 font-bold hover:bg-purple-100 shadow-sm transition-all active:scale-95 text-xl">
                 {w.english}
               </button>
             ))}
@@ -405,8 +457,11 @@ const RiddlesGame = ({ onWin }: { onWin: () => void }) => {
 
   const select = (word: string) => {
     if (word === targetWord.english) {
+      playSound('correct');
       if (idx + 1 < riddles.length) setIdx(idx + 1);
       else onWin();
+    } else {
+      playSound('wrong');
     }
   };
 
@@ -444,13 +499,151 @@ const RiddlesGame = ({ onWin }: { onWin: () => void }) => {
   );
 };
 
+// --- Game: Tug of War ---
+const TugOfWarGame = ({ onWin }: { onWin: (winner: string) => void }) => {
+  const [qIdx, setQIdx] = useState(0);
+  const [score, setScore] = useState(0); // -3 to 3 (Left player wins if -3, Right player wins if 3)
+  const [p1Score, setP1Score] = useState(0); // Round tally
+  const [p2Score, setP2Score] = useState(0); // Round tally
+  const [gameOver, setGameOver] = useState(false);
+  
+  const questionPool = useMemo(() => VOCABULARY.sort(() => Math.random() - 0.5).slice(0, 5), []);
+  const currentTarget = questionPool[qIdx];
+  
+  const options = useMemo(() => {
+    if (!currentTarget) return [];
+    const others = VOCABULARY.filter(w => w.id !== currentTarget.id).sort(() => Math.random() - 0.5).slice(0, 3);
+    return [currentTarget, ...others].sort(() => Math.random() - 0.5);
+  }, [currentTarget]);
+
+  const handleSelect = (side: 'L' | 'R', english: string) => {
+    if (gameOver) return;
+    
+    if (english === currentTarget.english) {
+      playSound('correct');
+      const newTugScore = side === 'L' ? score - 1 : score + 1;
+      setScore(newTugScore);
+      
+      if (side === 'L') setP1Score(s => s + 1);
+      else setP2Score(s => s + 1);
+
+      if (qIdx === 4 || Math.abs(newTugScore) >= 3) {
+        setGameOver(true);
+        const winner = newTugScore < 0 || p1Score > p2Score ? 'Player 1 (Left)' : 'Player 2 (Right)';
+        setTimeout(() => onWin(winner), 1200);
+      } else {
+        setQIdx(qIdx + 1);
+      }
+    } else {
+      playSound('wrong');
+    }
+  };
+
+  if (!currentTarget) return null;
+
+  return (
+    <div className="fixed inset-0 bg-orange-50 z-[100] flex flex-col md:flex-row overflow-hidden">
+      {/* Top HUD - Clear Scores */}
+      <div className="absolute top-0 left-0 right-0 h-24 bg-white/90 border-b-4 border-orange-200 flex items-center justify-between px-10 z-20 shadow-lg backdrop-blur-sm">
+        <div className="flex flex-col items-start">
+          <span className="text-blue-600 font-black text-sm uppercase tracking-tighter">Player 1 Score</span>
+          <span className="text-5xl font-title text-blue-500 leading-none">{p1Score}</span>
+        </div>
+        <div className="flex flex-col items-center">
+            <div className="bg-orange-500 text-white px-4 py-1 rounded-full text-xs font-bold mb-1">ROUND</div>
+            <div className="text-3xl font-black text-orange-600">{qIdx + 1} <span className="text-orange-300">/ 5</span></div>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-red-600 font-black text-sm uppercase tracking-tighter">Player 2 Score</span>
+          <span className="text-5xl font-title text-red-500 leading-none">{p2Score}</span>
+        </div>
+      </div>
+
+      {/* Player Left (Pikachu) */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-24 border-b-4 md:border-b-0 md:border-r-4 border-orange-200 bg-gradient-to-br from-blue-50 to-white">
+        <div className="mb-6 text-center">
+          <img src={getPokemonImageUrl(25)} className={`w-28 h-28 mb-4 pokemon-float ${score < 0 ? 'scale-125 transition-transform' : ''}`} alt="Pikachu" />
+          <h2 className="text-2xl font-black text-blue-500 uppercase tracking-widest">P1 ⚡</h2>
+          <div className="mt-6 bg-blue-100 px-8 py-4 rounded-[2rem] border-4 border-blue-400 text-4xl font-black text-blue-900 shadow-lg">{currentTarget.chinese}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+          {options.map(opt => (
+            <button key={`L-${opt.id}`} onClick={() => handleSelect('L', opt.english)} className="bg-white p-5 rounded-2xl border-4 border-blue-100 shadow-md text-xl font-bold text-blue-800 hover:bg-blue-50 active:scale-95 transition-all">
+              {opt.english}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* The Rope Center - Improved Visuals */}
+      <div className="absolute top-1/2 left-0 right-0 md:top-0 md:bottom-0 md:left-1/2 -translate-y-1/2 md:-translate-y-0 md:-translate-x-1/2 flex items-center justify-center pointer-events-none z-10">
+        <div className="relative w-[90%] h-12 md:w-16 md:h-[90%] flex items-center justify-center">
+            {/* Rope Background Path */}
+            <div className="absolute w-full h-4 md:w-4 md:h-full bg-orange-900/20 rounded-full border-2 border-orange-800/10"></div>
+            {/* Visual Rope */}
+            <div className="absolute w-full h-3 md:w-3 md:h-full bg-orange-800 rounded-full shadow-lg border-2 border-orange-950 flex justify-between px-2 items-center md:flex-col md:py-2">
+                {/* Win markers */}
+                <div className="w-1 h-8 md:w-8 md:h-1 bg-red-400 rounded-full opacity-50"></div>
+                <div className="w-1 h-8 md:w-8 md:h-1 bg-gray-400 rounded-full opacity-50"></div>
+                <div className="w-1 h-8 md:w-8 md:h-1 bg-blue-400 rounded-full opacity-50"></div>
+            </div>
+            
+            {/* Moving Knot */}
+            <div 
+                className="absolute w-20 h-20 bg-red-600 rounded-full shadow-2xl border-4 border-white transition-all duration-700 ease-out flex items-center justify-center"
+                style={{
+                    left: `${50 + (score * 15)}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%) rotate(0deg)'
+                }}
+            >
+                <div className="text-4xl drop-shadow-md animate-bounce">🎀</div>
+                {/* Visual Label */}
+                <div className="absolute -top-12 bg-white px-3 py-1 rounded-full shadow-md text-[10px] font-black text-red-600 uppercase whitespace-nowrap border-2 border-red-500">Center Mark</div>
+            </div>
+        </div>
+      </div>
+
+      {/* Player Right (Charmander) */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-24 bg-gradient-to-bl from-red-50 to-white">
+        <div className="mb-6 text-center">
+          <img src={getPokemonImageUrl(4)} className={`w-28 h-28 mb-4 pokemon-float ${score > 0 ? 'scale-125 transition-transform' : ''}`} alt="Charmander" />
+          <h2 className="text-2xl font-black text-red-500 uppercase tracking-widest">P2 🔥</h2>
+          <div className="mt-6 bg-red-100 px-8 py-4 rounded-[2rem] border-4 border-red-400 text-4xl font-black text-red-900 shadow-lg">{currentTarget.chinese}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+          {options.map(opt => (
+            <button key={`R-${opt.id}`} onClick={() => handleSelect('R', opt.english)} className="bg-white p-5 rounded-2xl border-4 border-red-100 shadow-md text-xl font-bold text-red-800 hover:bg-red-50 active:scale-95 transition-all">
+              {opt.english}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      {/* Visual Instruction Overlay */}
+      {qIdx === 0 && (
+          <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-yellow-400 text-white px-6 py-2 rounded-full font-black animate-pulse shadow-xl">
+            BE FAST! ONE ANSWER PER TURN! 🚀
+          </div>
+      )}
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
   const [view, setView] = useState<GameType>(GameType.WORD_LIST);
   const [reward, setReward] = useState<Pokemon | null>(null);
+  const [winnerName, setWinnerName] = useState<string | null>(null);
 
-  const handleWin = () => {
+  const handleWin = useCallback(() => {
+    setReward(POKEMON_LIST[Math.floor(Math.random() * POKEMON_LIST.length)]);
+    setView(GameType.WORD_LIST);
+  }, []);
+
+  const handleTugWin = (winner: string) => {
+    setWinnerName(winner);
     setReward(POKEMON_LIST[Math.floor(Math.random() * POKEMON_LIST.length)]);
     setView(GameType.WORD_LIST);
   };
@@ -474,6 +667,7 @@ export default function App() {
         {view === GameType.BUBBLE_POP && <BubblePop onWin={handleWin}/>}
         {view === GameType.MEMORY_GAME && <MemoryGame onWin={handleWin}/>}
         {view === GameType.RIDDLES && <RiddlesGame onWin={handleWin}/>}
+        {view === GameType.TUG_OF_WAR && <TugOfWarGame onWin={handleTugWin}/>}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md shadow-[0_-10px_30px_rgba(0,0,0,0.1)] border-t-8 border-yellow-400 p-4 z-50 overflow-x-auto">
@@ -486,16 +680,21 @@ export default function App() {
           <NavBtn icon="🫧" label="Bubble" active={view === GameType.BUBBLE_POP} onClick={() => setView(GameType.BUBBLE_POP)} color="text-cyan-600" />
           <NavBtn icon="🧠" label="Memory" active={view === GameType.MEMORY_GAME} onClick={() => setView(GameType.MEMORY_GAME)} color="text-purple-600" />
           <NavBtn icon={<LucideHelpCircle size={32}/>} label="Riddles" active={view === GameType.RIDDLES} onClick={() => setView(GameType.RIDDLES)} color="text-indigo-600" />
+          <NavBtn icon={<LucideSwords size={32}/>} label="TugOfWar" active={view === GameType.TUG_OF_WAR} onClick={() => setView(GameType.TUG_OF_WAR)} color="text-orange-600" />
         </div>
       </nav>
 
       {reward && (
-        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-[100] backdrop-blur-md animate-in zoom-in duration-300">
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-[200] backdrop-blur-md animate-in zoom-in duration-300">
           <div className="bg-white rounded-[5rem] p-12 max-w-sm w-full text-center shadow-2xl border-[16px] border-yellow-400">
             <img src={reward.imageUrl} className="w-64 h-64 mx-auto mb-8 pokemon-float" alt="Pokemon" />
-            <h2 className="text-5xl font-title text-yellow-600 mb-4 uppercase tracking-tighter">Gotcha! 🎉</h2>
-            <p className="text-3xl font-bold text-gray-700 italic mb-10 tracking-widest uppercase underline decoration-yellow-400">You caught {reward.name}!</p>
-            <button onClick={() => setReward(null)} className="bg-green-500 text-white font-title text-2xl py-6 px-12 rounded-full w-full shadow-2xl hover:scale-105 transition-transform active:scale-95 border-b-8 border-green-700">AWESOME!</button>
+            <h2 className="text-5xl font-title text-yellow-600 mb-4 uppercase tracking-tighter">
+                {winnerName ? "Winner!" : "Gotcha!"} 🎉
+            </h2>
+            <p className="text-3xl font-bold text-gray-700 italic mb-10 tracking-widest uppercase underline decoration-yellow-400">
+                {winnerName ? `${winnerName} got ${reward.name}!` : `You caught ${reward.name}!`}
+            </p>
+            <button onClick={() => { setReward(null); setWinnerName(null); }} className="bg-green-500 text-white font-title text-2xl py-6 px-12 rounded-full w-full shadow-2xl hover:scale-105 transition-transform active:scale-95 border-b-8 border-green-700">AWESOME!</button>
           </div>
         </div>
       )}
