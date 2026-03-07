@@ -841,6 +841,373 @@ const SpellingTugOfWarGame = ({ onWin, onExit }: { onWin: (winner: 'Player 1' | 
   );
 };
 
+// --- Game: Special Tug of War ---
+const SpecialTugOfWarGame = ({ onWin, onExit }: { onWin: (winner: 'Player 1' | 'Player 2') => void, onExit: () => void }) => {
+  const [qIdx, setQIdx] = useState(0);
+  const [tugPosition, setTugPosition] = useState(0);
+  const [p1Score, setP1Score] = useState(0);
+  const [p2Score, setP2Score] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [winner, setWinner] = useState<'Player 1' | 'Player 2' | null>(null);
+
+  const targets = useMemo(() => [
+    'sick', 'lonely', 'busy', 'free', 
+    'listen to music', 'play card games', 'nap', 'chat with friends', 
+    'diary', 'hour', 'sleepy', 'study for exams'
+  ], []);
+
+  const [specialVocab, setSpecialVocab] = useState<WordItem[]>([]);
+
+  const initSet = useCallback(() => {
+    const newSet = VOCABULARY.filter(w => targets.includes(w.english)).sort(() => Math.random() - 0.5).slice(0, 3);
+    setSpecialVocab(newSet);
+    setQIdx(0);
+    setTugPosition(0);
+    setP1Score(0);
+    setP2Score(0);
+    setGameOver(false);
+    setWinner(null);
+  }, [targets]);
+
+  useEffect(() => {
+    initSet();
+  }, [initSet]);
+
+  const currentTarget = specialVocab[qIdx];
+
+  const options = useMemo(() => {
+    if (!currentTarget) return [];
+    const others = VOCABULARY.filter(w => w.id !== currentTarget.id).sort(() => Math.random() - 0.5).slice(0, 3);
+    return [currentTarget, ...others].sort(() => Math.random() - 0.5);
+  }, [currentTarget]);
+
+  const handleSelect = (side: 'L' | 'R', english: string) => {
+    if (gameOver || winner) return;
+    if (english === currentTarget.english) {
+      playSound('correct');
+      const newP1 = side === 'L' ? p1Score + 1 : p1Score;
+      const newP2 = side === 'R' ? p2Score + 1 : p2Score;
+      
+      if (side === 'L') {
+        setP1Score(newP1);
+        setTugPosition(p => p - 1);
+      } else {
+        setP2Score(newP2);
+        setTugPosition(p => p + 1);
+      }
+
+      if (qIdx === 2) {
+        setGameOver(true);
+        playSound('win');
+        const finalWinner = newP1 > newP2 ? 'Player 1' : 'Player 2';
+        setWinner(finalWinner as 'Player 1' | 'Player 2');
+      } else {
+        setQIdx(qIdx + 1);
+      }
+    } else {
+      playSound('wrong');
+    }
+  };
+
+  if (!currentTarget) return null;
+
+  return (
+    <div className="fixed inset-0 bg-emerald-50 z-[100] flex flex-col md:flex-row overflow-hidden font-title">
+      <button onClick={onExit} className="absolute top-4 left-4 z-[110] bg-white/80 hover:bg-white p-3 rounded-full shadow-lg border-2 border-emerald-200 text-emerald-600 transition-all active:scale-95">
+        <LucideArrowLeft size={24} />
+      </button>
+      <div className="absolute top-0 left-0 right-0 h-32 bg-white/95 border-b-8 border-emerald-400 flex items-center justify-between px-12 z-20 shadow-2xl backdrop-blur-md">
+        <div className="flex flex-col items-start gap-1 pl-12">
+          <span className="text-emerald-600 font-black text-lg uppercase">P1</span>
+          <div className="text-7xl font-title text-emerald-500 leading-none">{p1Score}</div>
+        </div>
+        <div className="flex flex-col items-center bg-emerald-100 px-10 py-3 rounded-[2rem] border-4 border-emerald-300">
+            <span className="text-emerald-500 text-xs font-black uppercase tracking-widest mb-1">SPECIAL BATTLE</span>
+            <div className="flex items-center gap-4">
+                {[...Array(3)].map((_, i) => (
+                    <div key={i} className={`w-6 h-6 rounded-full border-2 ${i < qIdx ? 'bg-emerald-500 border-emerald-700' : i === qIdx && !winner ? 'bg-white border-emerald-500 animate-bounce' : i === qIdx && winner ? 'bg-emerald-500 border-emerald-700' : 'bg-gray-200 border-gray-300'}`}></div>
+                ))}
+            </div>
+            <div className="text-2xl font-black text-emerald-600 mt-2">ROUND {winner ? 3 : qIdx + 1} / 3</div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-red-600 font-black text-lg uppercase">P2</span>
+          <div className="text-7xl font-title text-red-500 leading-none">{p2Score}</div>
+        </div>
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-32 bg-gradient-to-br from-emerald-50 to-white relative">
+        <div className="mb-10 text-center flex flex-col items-center">
+          <img src={getPokemonImageUrl(252)} className={`w-32 h-32 mb-4 pokemon-float ${tugPosition < 0 ? 'scale-125' : ''}`} alt="Treecko" />
+          <div className="bg-emerald-600 text-white px-6 py-2 rounded-full text-xl font-black mb-6 shadow-lg">PLAYER 1</div>
+          <div className="bg-white px-10 py-6 rounded-[3rem] border-8 border-emerald-400 text-6xl font-black text-emerald-900 shadow-2xl">{currentTarget.chinese}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-6 w-full max-w-md">
+          {options.map(opt => (
+            <button key={`L-${opt.id}`} onClick={() => handleSelect('L', opt.english)} className="bg-white p-6 rounded-[2rem] border-4 border-emerald-100 shadow-xl text-2xl font-black text-emerald-800 hover:bg-emerald-500 hover:text-white hover:scale-105 active:scale-95 transition-all">
+              {opt.english}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="absolute top-1/2 left-0 right-0 md:top-0 md:bottom-0 md:left-1/2 -translate-y-1/2 md:-translate-y-0 md:-translate-x-1/2 flex items-center justify-center pointer-events-none z-10">
+        <div className="relative w-full h-16 md:w-20 md:h-[80%] flex items-center justify-center">
+            <div className="absolute w-[95%] h-5 md:w-5 md:h-[95%] bg-emerald-900 rounded-full border-4 border-emerald-950"></div>
+            <div 
+                className="absolute w-24 h-24 bg-red-600 rounded-full shadow-2xl border-8 border-white transition-all duration-700 ease-out"
+                style={{
+                    left: `${50 + (tugPosition * 15)}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)'
+                }}
+            >
+                <div className="text-5xl flex items-center justify-center h-full animate-bounce">⚔️</div>
+            </div>
+        </div>
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-32 bg-gradient-to-bl from-red-50 to-white relative">
+        <div className="mb-10 text-center flex flex-col items-center">
+          <img src={getPokemonImageUrl(255)} className={`w-32 h-32 mb-4 pokemon-float ${tugPosition > 0 ? 'scale-125' : ''}`} alt="Torchic" />
+          <div className="bg-red-600 text-white px-6 py-2 rounded-full text-xl font-black mb-6 shadow-lg">PLAYER 2</div>
+          <div className="bg-white px-10 py-6 rounded-[3rem] border-8 border-red-400 text-6xl font-black text-red-900 shadow-2xl">{currentTarget.chinese}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-6 w-full max-w-md">
+          {options.map(opt => (
+            <button key={`R-${opt.id}`} onClick={() => handleSelect('R', opt.english)} className="bg-white p-6 rounded-[2rem] border-4 border-red-100 shadow-xl text-2xl font-black text-emerald-800 hover:bg-red-500 hover:text-white hover:scale-105 active:scale-95 transition-all">
+              {opt.english}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Victory Overlay */}
+      {winner && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4 animate-in fade-in duration-500">
+          <div className="bg-white rounded-[4rem] p-10 max-w-md w-full text-center shadow-2xl border-[12px] border-emerald-400 scale-in duration-300">
+            <div className="text-8xl mb-6 animate-bounce">🏆</div>
+            <h2 className="text-5xl font-title text-emerald-600 mb-2 uppercase">VICTORY!</h2>
+            <p className="text-3xl font-bold text-gray-700 mb-8 italic">{winner} wins this set!</p>
+            
+            <div className="flex flex-col gap-4">
+              <button 
+                onClick={initSet}
+                className="bg-emerald-500 text-white font-title text-2xl py-5 px-8 rounded-full shadow-xl hover:scale-105 transition-transform active:scale-95 border-b-8 border-emerald-700 flex items-center justify-center gap-3"
+              >
+                <LucideRefreshCcw size={28} /> PLAY NEXT SET
+              </button>
+              <button 
+                onClick={() => onWin(winner)}
+                className="bg-yellow-400 text-white font-title text-xl py-4 px-8 rounded-full shadow-lg hover:scale-105 transition-transform active:scale-95 border-b-8 border-yellow-600"
+              >
+                GET REWARD & EXIT
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SpecialSpellingTugOfWarGame = ({ onWin, onExit }: { onWin: (winner: 'Player 1' | 'Player 2') => void, onExit: () => void }) => {
+  const [qIdx, setQIdx] = useState(0);
+  const [tugPosition, setTugPosition] = useState(0);
+  const [p1Score, setP1Score] = useState(0);
+  const [p2Score, setP2Score] = useState(0);
+  const [p1GuessIndices, setP1GuessIndices] = useState<number[]>([]);
+  const [p2GuessIndices, setP2GuessIndices] = useState<number[]>([]);
+  const [gameOver, setGameOver] = useState(false);
+  const [winner, setWinner] = useState<'Player 1' | 'Player 2' | null>(null);
+
+  const targets = useMemo(() => [
+    'sick', 'lonely', 'busy', 'free', 
+    'listen to music', 'play card games', 'nap', 'chat with friends', 
+    'diary', 'hour', 'sleepy', 'study for exams'
+  ], []);
+
+  const [specialVocab, setSpecialVocab] = useState<WordItem[]>([]);
+
+  const initSet = useCallback(() => {
+    const newSet = VOCABULARY.filter(w => targets.includes(w.english)).sort(() => Math.random() - 0.5).slice(0, 3);
+    setSpecialVocab(newSet);
+    setQIdx(0);
+    setTugPosition(0);
+    setP1Score(0);
+    setP2Score(0);
+    setP1GuessIndices([]);
+    setP2GuessIndices([]);
+    setGameOver(false);
+    setWinner(null);
+  }, [targets]);
+
+  useEffect(() => {
+    initSet();
+  }, [initSet]);
+
+  const currentTarget = specialVocab[qIdx];
+
+  const letters = useMemo(() => {
+    if (!currentTarget) return [];
+    return currentTarget.english.toLowerCase().replace(/[^a-z]/g, "").split("").sort(() => Math.random() - 0.5);
+  }, [currentTarget]);
+
+  const handleLetter = (player: 1 | 2, letterIdx: number) => {
+    if (gameOver || winner) return;
+    const cleanTarget = currentTarget.english.toLowerCase().replace(/[^a-z]/g, "");
+    const currentGuessIndices = player === 1 ? p1GuessIndices : p2GuessIndices;
+    
+    if (currentGuessIndices.length < cleanTarget.length && !currentGuessIndices.includes(letterIdx)) {
+      const nextGuessIndices = [...currentGuessIndices, letterIdx];
+      if (player === 1) setP1GuessIndices(nextGuessIndices); else setP2GuessIndices(nextGuessIndices);
+
+      const currentGuess = nextGuessIndices.map(i => letters[i]).join("");
+      if (currentGuess === cleanTarget) {
+        playSound('correct');
+        const newP1 = player === 1 ? p1Score + 1 : p1Score;
+        const newP2 = player === 2 ? p2Score + 1 : p2Score;
+        
+        if (player === 1) {
+          setP1Score(newP1);
+          setTugPosition(p => p - 1);
+        } else {
+          setP2Score(newP2);
+          setTugPosition(p => p + 1);
+        }
+
+        if (qIdx === 2) {
+          setGameOver(true);
+          playSound('win');
+          const finalWinner = newP1 > newP2 ? 'Player 1' : 'Player 2';
+          setWinner(finalWinner as 'Player 1' | 'Player 2');
+        } else {
+          setQIdx(qIdx + 1);
+          setP1GuessIndices([]);
+          setP2GuessIndices([]);
+        }
+      } else if (currentGuess.length === cleanTarget.length) {
+        playSound('wrong');
+      }
+    }
+  };
+
+  if (!currentTarget) return null;
+
+  return (
+    <div className="fixed inset-0 bg-rose-50 z-[100] flex flex-col md:flex-row overflow-hidden font-title">
+      <button onClick={onExit} className="absolute top-4 left-4 z-[110] bg-white/80 hover:bg-white p-3 rounded-full shadow-lg border-2 border-rose-200 text-rose-600 transition-all active:scale-95">
+        <LucideArrowLeft size={24} />
+      </button>
+      <div className="absolute top-0 left-0 right-0 h-32 bg-white/95 border-b-8 border-rose-400 flex items-center justify-between px-12 z-20 shadow-2xl backdrop-blur-md">
+        <div className="flex flex-col items-start gap-1 pl-12">
+          <span className="text-blue-600 font-black text-lg uppercase">P1</span>
+          <div className="text-7xl font-title text-blue-500 leading-none">{p1Score}</div>
+        </div>
+        <div className="flex flex-col items-center bg-rose-100 px-10 py-3 rounded-[2rem] border-4 border-rose-300">
+            <span className="text-rose-700 text-xs font-black uppercase tracking-widest mb-1">SPELL BATTLE 12</span>
+            <div className="flex items-center gap-4">
+                {[...Array(3)].map((_, i) => (
+                    <div key={i} className={`w-6 h-6 rounded-full border-2 ${i < qIdx ? 'bg-rose-500 border-rose-700' : i === qIdx && !winner ? 'bg-white border-rose-500 animate-bounce' : i === qIdx && winner ? 'bg-rose-500 border-rose-700' : 'bg-gray-200 border-gray-300'}`}></div>
+                ))}
+            </div>
+            <div className="text-2xl font-black text-rose-800 mt-2">ROUND {winner ? 3 : qIdx + 1} / 3</div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-red-600 font-black text-lg uppercase">P2</span>
+          <div className="text-7xl font-title text-red-500 leading-none">{p2Score}</div>
+        </div>
+      </div>
+
+      {/* Player 1 */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-32 bg-blue-50 relative">
+        <div className="mb-6 text-center">
+          <div className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-black mb-4">PLAYER 1</div>
+          <div className="text-4xl font-black text-blue-900 mb-2">{currentTarget.chinese} {currentTarget.emoji}</div>
+          <div className="flex gap-2 justify-center h-12">
+            {currentTarget.english.toLowerCase().replace(/[^a-z]/g, "").split("").map((_, i) => (
+              <div key={i} className="w-8 border-b-4 border-blue-400 text-2xl font-bold flex items-center justify-center">
+                {letters[p1GuessIndices[i]] || ""}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {letters.map((l, i) => (
+            <button key={i} onClick={() => handleLetter(1, i)} className={`bg-white w-12 h-12 rounded-xl border-2 border-blue-200 text-xl font-bold shadow hover:bg-blue-100 active:scale-95 ${p1GuessIndices.includes(i) ? 'invisible pointer-events-none' : ''}`}>
+              {l}
+            </button>
+          ))}
+          <button onClick={() => setP1GuessIndices(p1GuessIndices.slice(0, -1))} className="bg-red-100 w-12 h-12 rounded-xl border-2 border-red-200 text-xl font-bold flex items-center justify-center"><LucideTrash2 size={20}/></button>
+        </div>
+      </div>
+
+      {/* Rope */}
+      <div className="absolute top-1/2 left-0 right-0 md:top-0 md:bottom-0 md:left-1/2 -translate-y-1/2 md:-translate-y-0 md:-translate-x-1/2 flex items-center justify-center pointer-events-none z-10">
+        <div className="relative w-full h-12 md:w-16 md:h-[70%] flex items-center justify-center">
+            <div className="absolute w-[90%] h-4 md:w-4 md:h-[90%] bg-rose-900 rounded-full border-2 border-rose-950"></div>
+            <div 
+                className="absolute w-16 h-16 bg-red-500 rounded-full border-4 border-white transition-all duration-500"
+                style={{
+                    left: `${50 + (tugPosition * 15)}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)'
+                }}
+            >
+                <div className="text-3xl flex items-center justify-center h-full">🐝</div>
+            </div>
+        </div>
+      </div>
+
+      {/* Player 2 */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-32 bg-red-50 relative">
+        <div className="mb-6 text-center">
+          <div className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-black mb-4">PLAYER 2</div>
+          <div className="text-4xl font-black text-red-900 mb-2">{currentTarget.chinese} {currentTarget.emoji}</div>
+          <div className="flex gap-2 justify-center h-12">
+            {currentTarget.english.toLowerCase().replace(/[^a-z]/g, "").split("").map((_, i) => (
+              <div key={i} className="w-8 border-b-4 border-red-400 text-2xl font-bold flex items-center justify-center">
+                {letters[p2GuessIndices[i]] || ""}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {letters.map((l, i) => (
+            <button key={i} onClick={() => handleLetter(2, i)} className={`bg-white w-12 h-12 rounded-xl border-2 border-red-200 text-xl font-bold shadow hover:bg-red-100 active:scale-95 ${p2GuessIndices.includes(i) ? 'invisible pointer-events-none' : ''}`}>
+              {l}
+            </button>
+          ))}
+          <button onClick={() => setP2GuessIndices(p2GuessIndices.slice(0, -1))} className="bg-blue-100 w-12 h-12 rounded-xl border-2 border-blue-200 text-xl font-bold flex items-center justify-center"><LucideTrash2 size={20}/></button>
+        </div>
+      </div>
+
+      {/* Victory Overlay */}
+      {winner && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4 animate-in fade-in duration-500">
+          <div className="bg-white rounded-[4rem] p-10 max-w-md w-full text-center shadow-2xl border-[12px] border-rose-400 scale-in duration-300">
+            <div className="text-8xl mb-6 animate-bounce">🏆</div>
+            <h2 className="text-5xl font-title text-rose-600 mb-2 uppercase">VICTORY!</h2>
+            <p className="text-3xl font-bold text-gray-700 mb-8 italic">{winner} wins this set!</p>
+            
+            <div className="flex flex-col gap-4">
+              <button 
+                onClick={initSet}
+                className="bg-rose-500 text-white font-title text-2xl py-5 px-8 rounded-full shadow-xl hover:scale-105 transition-transform active:scale-95 border-b-8 border-rose-700 flex items-center justify-center gap-3"
+              >
+                <LucideRefreshCcw size={28} /> PLAY NEXT SET
+              </button>
+              <button 
+                onClick={() => onWin(winner)}
+                className="bg-yellow-400 text-white font-title text-xl py-4 px-8 rounded-full shadow-lg hover:scale-105 transition-transform active:scale-95 border-b-8 border-yellow-600"
+              >
+                GET REWARD & EXIT
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -884,6 +1251,8 @@ export default function App() {
         {view === GameType.RIDDLES && <RiddlesGame onWin={handleWin}/>}
         {view === GameType.TUG_OF_WAR && <TugOfWarGame onWin={handleTugWin} onExit={() => setView(GameType.WORD_LIST)}/>}
         {view === GameType.SPELLING_TUG_OF_WAR && <SpellingTugOfWarGame onWin={handleTugWin} onExit={() => setView(GameType.WORD_LIST)}/>}
+        {view === GameType.SPECIAL_TUG_OF_WAR && <SpecialTugOfWarGame onWin={handleTugWin} onExit={() => setView(GameType.WORD_LIST)}/>}
+        {view === GameType.SPECIAL_SPELLING_TUG_OF_WAR && <SpecialSpellingTugOfWarGame onWin={handleTugWin} onExit={() => setView(GameType.WORD_LIST)}/>}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md shadow-[0_-10px_30px_rgba(0,0,0,0.1)] border-t-8 border-yellow-400 p-4 z-50 overflow-x-auto">
@@ -898,6 +1267,8 @@ export default function App() {
           <NavBtn icon={<LucideHelpCircle size={32}/>} label="Riddles" active={view === GameType.RIDDLES} onClick={() => setView(GameType.RIDDLES)} color="text-indigo-600" />
           <NavBtn icon={<LucideSwords size={32}/>} label="TugOfWar" active={view === GameType.TUG_OF_WAR} onClick={() => setView(GameType.TUG_OF_WAR)} color="text-orange-600" />
           <NavBtn icon="⚔️" label="SpellWar" active={view === GameType.SPELLING_TUG_OF_WAR} onClick={() => setView(GameType.SPELLING_TUG_OF_WAR)} color="text-red-600" />
+          <NavBtn icon="🏆" label="12Vocab" active={view === GameType.SPECIAL_TUG_OF_WAR} onClick={() => setView(GameType.SPECIAL_TUG_OF_WAR)} color="text-emerald-600" />
+          <NavBtn icon="⚔️" label="12Spell" active={view === GameType.SPECIAL_SPELLING_TUG_OF_WAR} onClick={() => setView(GameType.SPECIAL_SPELLING_TUG_OF_WAR)} color="text-rose-600" />
         </div>
       </nav>
 
