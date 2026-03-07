@@ -239,20 +239,31 @@ const MatchingGame = ({ onWin }: { onWin: () => void }) => {
 const SpellingBee = ({ onWin }: { onWin: () => void }) => {
   const [idx, setIdx] = useState(0);
   const target = VOCABULARY[idx];
-  const [guess, setGuess] = useState<string[]>([]);
+  const [guessIndices, setGuessIndices] = useState<number[]>([]);
   const letters = useMemo(() => target.english.toLowerCase().replace(/[^a-z]/g, "").split("").sort(() => Math.random() - 0.5), [idx]);
 
-  const add = (l: string) => {
+  const add = (letterIdx: number) => {
     const cleanTarget = target.english.toLowerCase().replace(/[^a-z]/g, "");
-    if (guess.length < cleanTarget.length) {
-      const next = [...guess, l];
-      setGuess(next);
-      if (next.join("") === cleanTarget) {
+    if (guessIndices.length < cleanTarget.length && !guessIndices.includes(letterIdx)) {
+      const next = [...guessIndices, letterIdx];
+      setGuessIndices(next);
+      const currentGuess = next.map(i => letters[i]).join("");
+      if (currentGuess === cleanTarget) {
         playSound('correct');
-        if (idx + 1 < VOCABULARY.length) { setIdx(idx + 1); setGuess([]); }
-        else onWin();
+        if (idx + 1 < VOCABULARY.length) { 
+          setIdx(idx + 1); 
+          setGuessIndices([]); 
+        } else {
+          onWin();
+        }
+      } else if (currentGuess.length === cleanTarget.length) {
+        playSound('wrong');
       }
     }
+  };
+
+  const removeLast = () => {
+    setGuessIndices(guessIndices.slice(0, -1));
   };
 
   return (
@@ -262,13 +273,30 @@ const SpellingBee = ({ onWin }: { onWin: () => void }) => {
       <div className="flex flex-wrap justify-center gap-4 my-10 h-16">
         {target.english.toLowerCase().split("").map((c, i) => {
           if (!/[a-z]/.test(c)) return <span key={i} className="text-4xl text-gray-300 mx-1">{c === ' ' ? '  ' : c}</span>;
-          const charIdx = target.english.toLowerCase().substring(0, i).replace(/[^a-z]/g, "").length;
-          const charInGuess = guess[charIdx];
-          return <button key={i} onClick={() => charIdx === guess.length - 1 && setGuess(guess.slice(0, -1))} className="text-4xl font-bold w-12 border-b-4 border-yellow-400 text-center transition-all hover:text-yellow-400">{charInGuess || "_"}</button>;
+          const charIdxInClean = target.english.toLowerCase().substring(0, i).replace(/[^a-z]/g, "").length;
+          const letterIdx = guessIndices[charIdxInClean];
+          const charInGuess = letterIdx !== undefined ? letters[letterIdx] : "";
+          return (
+            <button 
+              key={i} 
+              onClick={() => charIdxInClean === guessIndices.length - 1 && removeLast()} 
+              className="text-4xl font-bold w-12 border-b-4 border-yellow-400 text-center transition-all hover:text-yellow-400"
+            >
+              {charInGuess || "_"}
+            </button>
+          );
         })}
       </div>
       <div className="grid grid-cols-5 gap-3 max-w-md">
-        {letters.map((l, i) => <button key={i} onClick={() => add(l)} className="bg-white w-14 h-14 rounded-xl border-4 border-yellow-100 text-2xl font-bold shadow hover:bg-yellow-50 transition-all active:scale-95">{l}</button>)}
+        {letters.map((l, i) => (
+          <button 
+            key={i} 
+            onClick={() => add(i)} 
+            className={`bg-white w-14 h-14 rounded-xl border-4 border-yellow-100 text-2xl font-bold shadow hover:bg-yellow-50 transition-all active:scale-95 ${guessIndices.includes(i) ? 'invisible pointer-events-none' : ''}`}
+          >
+            {l}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -508,15 +536,15 @@ const RiddlesGame = ({ onWin }: { onWin: () => void }) => {
 };
 
 // --- Game: Tug of War ---
-const TugOfWarGame = ({ onWin }: { onWin: (winner: 'Player 1' | 'Player 2') => void }) => {
+const TugOfWarGame = ({ onWin, onExit }: { onWin: (winner: 'Player 1' | 'Player 2') => void, onExit: () => void }) => {
   const [qIdx, setQIdx] = useState(0);
   const [tugPosition, setTugPosition] = useState(0); // Rope visual offset
   const [p1Score, setP1Score] = useState(0); 
   const [p2Score, setP2Score] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   
-  // Every word is available, 5 questions per set.
-  const questionPool = useMemo(() => VOCABULARY.sort(() => Math.random() - 0.5).slice(0, 5), []);
+  // Every word is available, 9 questions per set.
+  const questionPool = useMemo(() => VOCABULARY.sort(() => Math.random() - 0.5).slice(0, 9), []);
   const currentTarget = questionPool[qIdx];
   
   const options = useMemo(() => {
@@ -539,7 +567,7 @@ const TugOfWarGame = ({ onWin }: { onWin: (winner: 'Player 1' | 'Player 2') => v
         setTugPosition(p => p + 1);
       }
 
-      if (qIdx === 4) {
+      if (qIdx === 8) {
         setGameOver(true);
         playSound('win');
         const finalP1 = side === 'L' ? p1Score + 1 : p1Score;
@@ -558,9 +586,17 @@ const TugOfWarGame = ({ onWin }: { onWin: (winner: 'Player 1' | 'Player 2') => v
 
   return (
     <div className="fixed inset-0 bg-orange-50 z-[100] flex flex-col md:flex-row overflow-hidden font-title">
+      {/* Exit Button */}
+      <button 
+        onClick={onExit}
+        className="absolute top-4 left-4 z-[110] bg-white/80 hover:bg-white p-3 rounded-full shadow-lg border-2 border-orange-200 text-orange-600 transition-all active:scale-95"
+      >
+        <LucideArrowLeft size={24} />
+      </button>
+
       {/* HUD - Massive Score Display */}
       <div className="absolute top-0 left-0 right-0 h-32 bg-white/95 border-b-8 border-yellow-400 flex items-center justify-between px-12 z-20 shadow-2xl backdrop-blur-md">
-        <div className="flex flex-col items-start gap-1">
+        <div className="flex flex-col items-start gap-1 pl-12">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded-full bg-blue-500 animate-pulse"></div>
             <span className="text-blue-600 font-black text-lg uppercase">P1 WINS</span>
@@ -570,12 +606,12 @@ const TugOfWarGame = ({ onWin }: { onWin: (winner: 'Player 1' | 'Player 2') => v
 
         <div className="flex flex-col items-center bg-orange-100 px-10 py-3 rounded-[2rem] border-4 border-orange-300">
             <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-1">BATTLE ROUND</span>
-            <div className="flex items-center gap-4">
-                {[...Array(5)].map((_, i) => (
-                    <div key={i} className={`w-6 h-6 rounded-full border-2 ${i < qIdx ? 'bg-orange-500 border-orange-700' : i === qIdx ? 'bg-white border-orange-500 animate-bounce' : 'bg-gray-200 border-gray-300'}`}></div>
+            <div className="flex items-center gap-2">
+                {[...Array(9)].map((_, i) => (
+                    <div key={i} className={`w-4 h-4 rounded-full border-2 ${i < qIdx ? 'bg-orange-500 border-orange-700' : i === qIdx ? 'bg-white border-orange-500 animate-bounce' : 'bg-gray-200 border-gray-300'}`}></div>
                 ))}
             </div>
-            <div className="text-2xl font-black text-orange-600 mt-2">ROUND {qIdx + 1} / 5</div>
+            <div className="text-2xl font-black text-orange-600 mt-2">ROUND {qIdx + 1} / 9</div>
         </div>
 
         <div className="flex flex-col items-end gap-1">
@@ -618,7 +654,7 @@ const TugOfWarGame = ({ onWin }: { onWin: (winner: 'Player 1' | 'Player 2') => v
             <div 
                 className="absolute w-24 h-24 bg-red-600 rounded-full shadow-[0_0_50px_rgba(239,68,68,0.5)] border-8 border-white transition-all duration-700 ease-out flex items-center justify-center"
                 style={{
-                    left: `${50 + (tugPosition * 12)}%`,
+                    left: `${50 + (tugPosition * 6)}%`,
                     top: '50%',
                     transform: 'translate(-50%, -50%)'
                 }}
@@ -645,15 +681,162 @@ const TugOfWarGame = ({ onWin }: { onWin: (winner: 'Player 1' | 'Player 2') => v
           ))}
         </div>
       </div>
+    </div>
+  );
+};
 
-      {/* Quick Start Message */}
-      {qIdx === 0 && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-yellow-400 border-4 border-yellow-600 px-10 py-4 rounded-[2rem] shadow-2xl flex items-center gap-4 animate-bounce z-30">
-            <span className="text-4xl">⚡</span>
-            <span className="text-3xl font-black text-white uppercase tracking-tighter">First one to tap correctly wins the round!</span>
-            <span className="text-4xl">🔥</span>
+// --- Game: Spelling Tug of War ---
+const SpellingTugOfWarGame = ({ onWin, onExit }: { onWin: (winner: 'Player 1' | 'Player 2') => void, onExit: () => void }) => {
+  const [qIdx, setQIdx] = useState(0);
+  const [tugPosition, setTugPosition] = useState(0);
+  const [p1Score, setP1Score] = useState(0);
+  const [p2Score, setP2Score] = useState(0);
+  const [p1GuessIndices, setP1GuessIndices] = useState<number[]>([]);
+  const [p2GuessIndices, setP2GuessIndices] = useState<number[]>([]);
+  const [gameOver, setGameOver] = useState(false);
+
+  // 3 words per set as requested
+  const questionPool = useMemo(() => VOCABULARY.sort(() => Math.random() - 0.5).slice(0, 3), []);
+  const currentTarget = questionPool[qIdx];
+
+  const letters = useMemo(() => {
+    if (!currentTarget) return [];
+    return currentTarget.english.toLowerCase().replace(/[^a-z]/g, "").split("").sort(() => Math.random() - 0.5);
+  }, [currentTarget]);
+
+  const handleLetter = (player: 1 | 2, letterIdx: number) => {
+    if (gameOver) return;
+    const cleanTarget = currentTarget.english.toLowerCase().replace(/[^a-z]/g, "");
+    const currentGuessIndices = player === 1 ? p1GuessIndices : p2GuessIndices;
+    
+    if (currentGuessIndices.length < cleanTarget.length && !currentGuessIndices.includes(letterIdx)) {
+      const nextGuessIndices = [...currentGuessIndices, letterIdx];
+      if (player === 1) setP1GuessIndices(nextGuessIndices); else setP2GuessIndices(nextGuessIndices);
+
+      const currentGuess = nextGuessIndices.map(i => letters[i]).join("");
+      if (currentGuess === cleanTarget) {
+        playSound('correct');
+        if (player === 1) {
+          setP1Score(s => s + 1);
+          setTugPosition(p => p - 1);
+        } else {
+          setP2Score(s => s + 1);
+          setTugPosition(p => p + 1);
+        }
+
+        if (qIdx === 2) {
+          setGameOver(true);
+          playSound('win');
+          const winner = (player === 1 ? p1Score + 1 : p1Score) > (player === 2 ? p2Score + 1 : p2Score) ? 'Player 1' : 'Player 2';
+          setTimeout(() => onWin(winner as 'Player 1' | 'Player 2'), 1500);
+        } else {
+          setQIdx(qIdx + 1);
+          setP1GuessIndices([]);
+          setP2GuessIndices([]);
+        }
+      } else if (currentGuess.length === cleanTarget.length) {
+        playSound('wrong');
+      }
+    }
+  };
+
+  if (!currentTarget) return null;
+
+  return (
+    <div className="fixed inset-0 bg-yellow-50 z-[100] flex flex-col md:flex-row overflow-hidden font-title">
+      {/* Exit Button */}
+      <button 
+        onClick={onExit}
+        className="absolute top-4 left-4 z-[110] bg-white/80 hover:bg-white p-3 rounded-full shadow-lg border-2 border-yellow-200 text-yellow-600 transition-all active:scale-95"
+      >
+        <LucideArrowLeft size={24} />
+      </button>
+
+      {/* HUD */}
+      <div className="absolute top-0 left-0 right-0 h-32 bg-white/95 border-b-8 border-yellow-400 flex items-center justify-between px-12 z-20 shadow-2xl backdrop-blur-md">
+        <div className="flex flex-col items-start pl-12">
+          <span className="text-blue-600 font-black text-lg uppercase">P1</span>
+          <div className="text-6xl font-title text-blue-500 leading-none">{p1Score}</div>
+        </div>
+
+        <div className="flex flex-col items-center bg-yellow-100 px-8 py-2 rounded-2xl border-4 border-yellow-300">
+            <span className="text-yellow-700 text-xs font-black uppercase tracking-widest">SPELLING BATTLE</span>
+            <div className="flex items-center gap-4 mt-1">
+                {[...Array(3)].map((_, i) => (
+                    <div key={i} className={`w-6 h-6 rounded-full border-2 ${i < qIdx ? 'bg-yellow-500 border-yellow-700' : i === qIdx ? 'bg-white border-yellow-500 animate-bounce' : 'bg-gray-200 border-gray-300'}`}></div>
+                ))}
+            </div>
+            <div className="text-xl font-black text-yellow-800 mt-1">ROUND {qIdx + 1} / 3</div>
+        </div>
+
+        <div className="flex flex-col items-end">
+          <span className="text-red-600 font-black text-lg uppercase">P2</span>
+          <div className="text-6xl font-title text-red-500 leading-none">{p2Score}</div>
+        </div>
+      </div>
+
+      {/* Player 1 */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-32 bg-blue-50 relative">
+        <div className="mb-6 text-center">
+          <div className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-black mb-4">PLAYER 1</div>
+          <div className="text-4xl font-black text-blue-900 mb-2">{currentTarget.chinese} {currentTarget.emoji}</div>
+          <div className="flex gap-2 justify-center h-12">
+            {currentTarget.english.toLowerCase().replace(/[^a-z]/g, "").split("").map((_, i) => (
+              <div key={i} className="w-8 border-b-4 border-blue-400 text-2xl font-bold flex items-center justify-center">
+                {letters[p1GuessIndices[i]] || ""}
+              </div>
+            ))}
           </div>
-      )}
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {letters.map((l, i) => (
+            <button key={i} onClick={() => handleLetter(1, i)} className={`bg-white w-12 h-12 rounded-xl border-2 border-blue-200 text-xl font-bold shadow hover:bg-blue-100 active:scale-95 ${p1GuessIndices.includes(i) ? 'invisible pointer-events-none' : ''}`}>
+              {l}
+            </button>
+          ))}
+          <button onClick={() => setP1GuessIndices(p1GuessIndices.slice(0, -1))} className="bg-red-100 w-12 h-12 rounded-xl border-2 border-red-200 text-xl font-bold flex items-center justify-center"><LucideTrash2 size={20}/></button>
+        </div>
+      </div>
+
+      {/* Rope */}
+      <div className="absolute top-1/2 left-0 right-0 md:top-0 md:bottom-0 md:left-1/2 -translate-y-1/2 md:-translate-y-0 md:-translate-x-1/2 flex items-center justify-center pointer-events-none z-10">
+        <div className="relative w-full h-12 md:w-16 md:h-[70%] flex items-center justify-center">
+            <div className="absolute w-[90%] h-4 md:w-4 md:h-[90%] bg-yellow-900 rounded-full border-2 border-yellow-950"></div>
+            <div 
+                className="absolute w-16 h-16 bg-red-500 rounded-full border-4 border-white transition-all duration-500"
+                style={{
+                    left: `${50 + (tugPosition * 15)}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)'
+                }}
+            >
+                <div className="text-3xl flex items-center justify-center h-full">🐝</div>
+            </div>
+        </div>
+      </div>
+
+      {/* Player 2 */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 pt-32 bg-red-50 relative">
+        <div className="mb-6 text-center">
+          <div className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-black mb-4">PLAYER 2</div>
+          <div className="text-4xl font-black text-red-900 mb-2">{currentTarget.chinese} {currentTarget.emoji}</div>
+          <div className="flex gap-2 justify-center h-12">
+            {currentTarget.english.toLowerCase().replace(/[^a-z]/g, "").split("").map((_, i) => (
+              <div key={i} className="w-8 border-b-4 border-red-400 text-2xl font-bold flex items-center justify-center">
+                {letters[p2GuessIndices[i]] || ""}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {letters.map((l, i) => (
+            <button key={i} onClick={() => handleLetter(2, i)} className={`bg-white w-12 h-12 rounded-xl border-2 border-red-200 text-xl font-bold shadow hover:bg-red-100 active:scale-95 ${p2GuessIndices.includes(i) ? 'invisible pointer-events-none' : ''}`}>
+              {l}
+            </button>
+          ))}
+          <button onClick={() => setP2GuessIndices(p2GuessIndices.slice(0, -1))} className="bg-blue-100 w-12 h-12 rounded-xl border-2 border-blue-200 text-xl font-bold flex items-center justify-center"><LucideTrash2 size={20}/></button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -699,7 +882,8 @@ export default function App() {
         {view === GameType.BUBBLE_POP && <BubblePop onWin={handleWin}/>}
         {view === GameType.MEMORY_GAME && <MemoryGame onWin={handleWin}/>}
         {view === GameType.RIDDLES && <RiddlesGame onWin={handleWin}/>}
-        {view === GameType.TUG_OF_WAR && <TugOfWarGame onWin={handleTugWin}/>}
+        {view === GameType.TUG_OF_WAR && <TugOfWarGame onWin={handleTugWin} onExit={() => setView(GameType.WORD_LIST)}/>}
+        {view === GameType.SPELLING_TUG_OF_WAR && <SpellingTugOfWarGame onWin={handleTugWin} onExit={() => setView(GameType.WORD_LIST)}/>}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md shadow-[0_-10px_30px_rgba(0,0,0,0.1)] border-t-8 border-yellow-400 p-4 z-50 overflow-x-auto">
@@ -713,6 +897,7 @@ export default function App() {
           <NavBtn icon="🧠" label="Memory" active={view === GameType.MEMORY_GAME} onClick={() => setView(GameType.MEMORY_GAME)} color="text-purple-600" />
           <NavBtn icon={<LucideHelpCircle size={32}/>} label="Riddles" active={view === GameType.RIDDLES} onClick={() => setView(GameType.RIDDLES)} color="text-indigo-600" />
           <NavBtn icon={<LucideSwords size={32}/>} label="TugOfWar" active={view === GameType.TUG_OF_WAR} onClick={() => setView(GameType.TUG_OF_WAR)} color="text-orange-600" />
+          <NavBtn icon="⚔️" label="SpellWar" active={view === GameType.SPELLING_TUG_OF_WAR} onClick={() => setView(GameType.SPELLING_TUG_OF_WAR)} color="text-red-600" />
         </div>
       </nav>
 
